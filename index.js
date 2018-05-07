@@ -39,16 +39,23 @@ function crawl (idx) {
       if (err) {
         console.warn('Could not join network')
         removePending(idx)
+        dat.close()
         return
       }
 
       const drive = dat.archive
-      if (drive.version <= user.lastVersion) return
+      if (drive.version <= user.lastVersion && user.name.length < 64) {
+          console.log('user "' + user.name + '" is up-to-date')
+          removePending(idx)
+          dat.close()
+          return
+      }
       console.log('reading profile.json for user ' + user.name)
       drive.readFile('profile.json', {encoding: 'utf-8'}, (err, profile) => {
         if (err) {
-          console.warn('Could not read profile.json')
+          console.warn('Could not read profile.json for user ' + user.name)
           removePending(idx)
+          dat.close()
           return
         }
         try {
@@ -56,6 +63,7 @@ function crawl (idx) {
         } catch (err) {
           console.warn('invalid json: ' + err)
           removePending(idx)
+          dat.close()
           return
         }
         console.log('loaded profile for user ' + user.name)
@@ -66,12 +74,14 @@ function crawl (idx) {
         if (follows) {
           follows.forEach(usr => {
             if (usr && usr.url && usr.name) {
-              var id = addUser(usr.url, usr.name, drive.version)
+              var id = addUser(usr.url, usr.name, 0)
               crawl(id)
             }
           })
         }
         removePending(idx)
+        fs.writeFile(file, JSON.stringify(users), () => {})
+        dat.close()
       })
     })
   })
@@ -110,9 +120,14 @@ function addUser (url, name, version) {
   if (typeof id !== 'number') {
     id = users.length
     ids[url] = id
+    users[id] = {url: url, name: name, lastChecked: 0, lastVersion: 0}
     console.log('new user: ' + name)
   }
-  users[id] = {url: url, name: name, lastChecked: 0, lastVersion: 0}
+  if(version > users[id].lastVersion)
+      users[id].lastVersion = version;
+  if(name !== users[id].name)
+      users[id].name = name
+  
   return id
 }
 
@@ -122,13 +137,12 @@ function removePending (item) {
       pending.splice(i, 1)
     }
   }
-  console.log('pending: ' + pending.length)
-  fs.writeFile(file, JSON.stringify(users), () => {})
-
+  
   while (waiting.length > 0 && pending.length < maxPending) {
     crawl(waiting[0])
     waiting.splice(0, 1)
   }
+  console.log('pending: ' + pending.length + ", waiting: " + waiting.length)
 }
 
 function now () {
