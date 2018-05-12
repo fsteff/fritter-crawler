@@ -10,7 +10,6 @@ var ids = []
 var pending = []
 var waiting = []
 var file = './users.json'
-// var nameTree = {...}
 loadIndex(file)
 
 function crawl (idx) {
@@ -19,13 +18,14 @@ function crawl (idx) {
 
   const url = users[idx].url
   user.lastChecked = now()
-  pending.push(idx)
 
   if (pending.length > maxPending) {
     waiting.push(idx)
-    console.log('waiting: ' + waiting.length)
     return
   }
+
+  pending.push(idx)
+
   console.log('loading user ' + user.name)
 
   Dat('/users/' + idx, {temp: true, key: url, sparse: true}, (err, dat) => {
@@ -132,9 +132,11 @@ function addUser (url, name, version) {
 }
 
 function removePending (item) {
-  for (var i = pending.length; i--;) {
+  var done = false
+  for (var i = 0; i < pending.length && !done; i++) {
     if (pending[i] === item) {
       pending.splice(i, 1)
+      done = true
     }
   }
   
@@ -148,3 +150,7 @@ function removePending (item) {
 function now () {
   return Math.round(new Date() / 1000)
 }
+
+process.on('exit', () => {
+  console.log('bye, until next time!')
+})
